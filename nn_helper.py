@@ -193,7 +193,7 @@ class LinearAttention(nn.module):
         out = rearrange(out, "b h c (x y)-> b (h c) x y", h =self.heads, x=h, y=w)
         return self.to_out(out)
 
-  
+
 # Group Normalization
 
 class PreNorm(nn.Module):
@@ -208,4 +208,3 @@ class PreNorm(nn.Module):
     
 
     
-
