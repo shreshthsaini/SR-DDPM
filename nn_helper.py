@@ -39,4 +39,6 @@ class Residual(nn.Module):
     def forward(self,x,**kwargs):
         return self.fn(x,**kwargs) + x
 
-
+def Upsample(dim, dim_out=None, mode='nearest', align_corners=None):
+    dim_out = default(dim_out, dim)
+    return nn.Upsample(scale_factor=2, mode=mode, align_corners=align_corners)
