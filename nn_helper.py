@@ -4,7 +4,6 @@ import math
 from inspect import isfunction 
 from functools import partial
 
-%matplotlib inline 
 import matplotlib.pyplot as plt 
 from tqdm.auto import tqdm
 from einops import rearrange, reduce 
@@ -97,7 +96,7 @@ class WeightStandardizedConv2d(nn.Conv2d):
 
 
 class Block(nn.Module):
-    def __init__(self, dim, dim_out, groups=8)
+    def __init__(self, dim, dim_out, groups=8):
         super().__init__()
         self.norm = nn.GroupNorm(groups, dim_out)
         self.act = nn.SiLU()
@@ -167,7 +166,7 @@ class Attention(nn.Module):
         out = rearrange(out, "b h (x y) d-> b (h d) x y", x=h, y=w)
         return self.to_out(out)
     
-class LinearAttention(nn.module):
+class LinearAttention(nn.Module):
     def __init__(self, dim, heads=4, dim_head=32):
         super().__init__()
         self.heads = heads
@@ -336,4 +335,3 @@ class Unet(nn.Module):
             
             return self.final_conv(x)
 
- 
