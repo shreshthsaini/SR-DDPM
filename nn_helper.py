@@ -1,9 +1,9 @@
 import os 
-import os 
 import math 
 from inspect import isfunction 
 from functools import partial
 
+#%matplotlib inline 
 import matplotlib.pyplot as plt 
 from tqdm.auto import tqdm
 from einops import rearrange, reduce 
@@ -12,6 +12,16 @@ from einops.layers.torch import Rearrange
 import torch 
 from torch import nn, einsum 
 import torch.nn.functional as F 
+from torchvision.transforms import Compose, ToTensor, Lambda, ToPILImage, CenterCrop, Resize
+
+from PIL import Image 
+import requests 
+import numpy as np
+
+from nn_helper import * 
+from diffusion_process import * 
+from loss_fun import *
+
 
 
 
@@ -148,7 +158,7 @@ class Attention(nn.Module):
         self.scale = dim_head ** -0.5
         inner_dim = dim_head * heads
 
-        self.to_qkv = nn.Conv2d(dim, inner_dim * 3, bias=False)
+        self.to_qkv = nn.Conv2d(dim, inner_dim * 3, 1, bias=False)
         self.to_out = nn.Conv2d(inner_dim, dim,1)
 
     def forward(self, x):
@@ -173,7 +183,7 @@ class LinearAttention(nn.Module):
         self.scale = dim_head ** -0.5
         inner_dim = dim_head * heads
 
-        self.to_qkv = nn.Conv2d(dim, inner_dim * 3, bias=False)
+        self.to_qkv = nn.Conv2d(dim, inner_dim * 3, 1, bias=False)
         self.to_out = nn.Sequential(nn.Conv2d(inner_dim, dim,1), nn.GroupNorm(1, dim))
 
     def forward(self, x):
@@ -229,7 +239,7 @@ class Unet(nn.Module):
         init_dim = default(init_dim, dim)
         self.init_conv = nn.Conv2d(input_channels, init_dim, 1, padding=0) 
 
-        dims = [init_dim, *map(lambda m:data*m, dim_mults)]
+        dims = [init_dim, *map(lambda m:dim*m, dim_mults)]
         in_out = list(zip(dims[:-1], dims[1:]))
 
         block_klass = partial(ResnetBlock, groups=resnet_block_groups)
@@ -289,49 +299,49 @@ class Unet(nn.Module):
         self.out_dim = default(out_dim, channels)
 
         self.final_res_block = block_klass(dim*2, dim, time_emb_dim=time_dim)
-        self.final_conv = nn.Conv2d(dim, self.out_dm, 1)
+        self.final_conv = nn.Conv2d(dim, self.out_dim, 1)
 
 
-        def foward(self, x, time, x_self_cond=None):
-            if self.self_condition:
-                x_self_cond = default(x_self_cond, lambda: torch.zeros_like(x))
-                x = torch.cat((x, x_self_cond), dim=1)
+    def forward(self, x, time, x_self_cond=None):
+        if self.self_condition:
+            x_self_cond = default(x_self_cond, lambda: torch.zeros_like(x))
+            x = torch.cat((x, x_self_cond), dim=1)
+        
+        x = self.init_conv(x)
+        r = x.clone()
+
+        t = self.time_mlp(time)
+
+        h = [] 
+
+        for block1, block2, attn, downsample in self.downs:
+            x = block1(x, t)
+            h.append(x)
+
+            x = block2(x, t)
+            x = attn(x, t)
+            h.append(x)
+
+            x = downsample(x)
+
+        x = self.mid_block1(x, t)
+        x = self.mid_attn(x)
+        x = self.mid_block2(x, t)
+
+        for block1, block2, attn, upsample in self.ups:            
+            x = torch.cat((x, h.pop()), dim=1)
+
+            x = block1(x, t)
+            x = torch.cat((x, h.pop()), dim=1)
             
-            x = self.init_conv(x)
-            r = x.clone()
+            x = block2(x, t)
+            x = attn(x, t)
 
-            t = self.time_mlp(time)
+            x = upsample(x)
 
-            h = [] 
+        x = torch.cat((x, r), dim=1)
 
-            for block1, block2, attn, downsample in self.downs:
-                x = block1(x, t)
-                h.append(x)
-
-                x = block2(x, t)
-                x = attn(x, t)
-                h.append(x)
-
-                x = downsample(x)
-
-            x = self.mid_block1(x, t)
-            x = self.mid_attn(x)
-            x = self.mid_block2(x, t)
-
-            for block1, block2, attn, upsample in self.ups:            
-                x = torch.cat((x, h.pop()), dim=1)
-
-                x = block1(x, t)
-                x = torch.cat((x, h.pop()), dim=1)
-                
-                x = block2(x, t)
-                x = attn(x, t)
-
-                x = upsample(x)
-
-            x = torch.cat((x, r), dim=1)
-
-            x = self.final_res_block(x, t)
-            
-            return self.final_conv(x)
+        x = self.final_res_block(x, t)
+        
+        return self.final_conv(x)
 
