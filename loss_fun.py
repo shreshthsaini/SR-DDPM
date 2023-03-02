@@ -13,6 +13,8 @@ def p_losses(denoise_model, x_start, t, noise=None, loss_type="l1"):
         noise = torch.randn_like(x_start)
 
     x_noisy = q_sample(x_start=x_start, t=t, noise=noise)
+    #print("x_noisy.shape: ", x_noisy.shape) --> None
+    
     predicted_noise = denoise_model(x_noisy, t)
 
     if loss_type == 'l1':

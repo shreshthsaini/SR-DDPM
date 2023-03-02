@@ -106,7 +106,7 @@ model = Unet(
     dim_mults=(1, 2, 4, ),
 )
 
-model = model.to(device)
+model.to(device)
 
 # optimizer
 optimizer = Adam(model.parameters(), lr=1e-3)
@@ -128,6 +128,9 @@ for epoch in range(epochs):
 
         if step%100 == 0:
             print("Loss:", loss.item())
+        
+        loss.backward()
+        optimizer.step()
         
         # savings the sampled images
         if step !=0 and step % save_and_sample_every == 0:

@@ -45,9 +45,9 @@ class Residual(nn.Module):
     def __init__(self,fn):
         super().__init__()
         self.fn = fn
-    
-    def forward(self,x,**kwargs):
-        return self.fn(x,**kwargs) + x
+
+    def forward(self, x, *args, **kwargs):
+        return self.fn(x, *args, **kwargs) + x
 
 def Upsample(dim, dim_out=None, mode='nearest', align_corners=None):
     return nn.Sequential(nn.Upsample(scale_factor=2, mode=mode, align_corners=align_corners),
@@ -176,22 +176,25 @@ class Attention(nn.Module):
         out = rearrange(out, "b h (x y) d-> b (h d) x y", x=h, y=w)
         return self.to_out(out)
     
+
 class LinearAttention(nn.Module):
     def __init__(self, dim, heads=4, dim_head=32):
         super().__init__()
+        self.scale = dim_head**-0.5
         self.heads = heads
-        self.scale = dim_head ** -0.5
-        inner_dim = dim_head * heads
+        hidden_dim = dim_head * heads
+        self.to_qkv = nn.Conv2d(dim, hidden_dim * 3, 1, bias=False)
 
-        self.to_qkv = nn.Conv2d(dim, inner_dim * 3, 1, bias=False)
-        self.to_out = nn.Sequential(nn.Conv2d(inner_dim, dim,1), nn.GroupNorm(1, dim))
+        self.to_out = nn.Sequential(nn.Conv2d(hidden_dim, dim, 1), 
+                                    nn.GroupNorm(1, dim))
 
     def forward(self, x):
         b, c, h, w = x.shape
         qkv = self.to_qkv(x).chunk(3, dim=1)
+        q, k, v = map(
+            lambda t: rearrange(t, "b (h c) x y -> b h c (x y)", h=self.heads), qkv
+        )
 
-        q, k, v = map(lambda t: rearrange(t, "b (h c) x y -> b h c (x y)", h=self.heads), qkv)
-        
         q = q.softmax(dim=-2)
         k = k.softmax(dim=-1)
 
@@ -199,8 +202,9 @@ class LinearAttention(nn.Module):
         context = torch.einsum("b h d n, b h e n -> b h d e", k, v)
 
         out = torch.einsum("b h d e, b h d n -> b h e n", context, q)
-        out = rearrange(out, "b h c (x y)-> b (h c) x y", h =self.heads, x=h, y=w)
+        out = rearrange(out, "b h c (x y) -> b (h c) x y", h=self.heads, x=h, y=w)
         return self.to_out(out)
+
 
 
 # Group Normalization
@@ -208,12 +212,12 @@ class LinearAttention(nn.Module):
 class PreNorm(nn.Module):
     def __init__(self, dim, fn):
         super().__init__()
-        self.norm = nn.GroupNorm(1, dim)
         self.fn = fn
+        self.norm = nn.GroupNorm(1, dim)
 
-    def forward(self, x, **kwargs):
+    def forward(self, x):
         x = self.norm(x)
-        return self.fn(x, **kwargs)
+        return self.fn(x)
     
 
 # Defining the Conditional U-Net Model 
@@ -237,7 +241,7 @@ class Unet(nn.Module):
         input_channels = channels * (2 if self_condition else 1)
 
         init_dim = default(init_dim, dim)
-        self.init_conv = nn.Conv2d(input_channels, init_dim, 1, padding=0) 
+        self.init_conv = nn.Conv2d(input_channels, init_dim, 1, padding=0) # changed to 1 and 0 from 7,3
 
         dims = [init_dim, *map(lambda m:dim*m, dim_mults)]
         in_out = list(zip(dims[:-1], dims[1:]))
@@ -273,7 +277,7 @@ class Unet(nn.Module):
                         else nn.Conv2d(dim_in, dim_out, 3, padding=1),
                     ]
                 )
-            ) 
+            )
         
         mid_dim = dims[-1]
         self.mid_block1 = block_klass(mid_dim, mid_dim, time_emb_dim=time_dim)
@@ -288,6 +292,7 @@ class Unet(nn.Module):
                    [
                         block_klass(dim_out + dim_in, dim_out, time_emb_dim=time_dim),
                         block_klass(dim_out + dim_in, dim_out, time_emb_dim=time_dim),
+                        
                         Residual(PreNorm(dim_out, LinearAttention(dim_out))),
                         Upsample(dim_out, dim_in)
                         if not is_last
@@ -306,7 +311,7 @@ class Unet(nn.Module):
         if self.self_condition:
             x_self_cond = default(x_self_cond, lambda: torch.zeros_like(x))
             x = torch.cat((x, x_self_cond), dim=1)
-        
+
         x = self.init_conv(x)
         r = x.clone()
 
