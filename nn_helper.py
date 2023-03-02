@@ -41,8 +41,9 @@ def num_to_groups(num,divisor):
         arr.append(remainder)
     return arr
 
+
 class Residual(nn.Module):
-    def __init__(self,fn):
+    def __init__(self, fn):
         super().__init__()
         self.fn = fn
 
@@ -110,10 +111,10 @@ class Block(nn.Module):
         super().__init__()
         self.norm = nn.GroupNorm(groups, dim_out)
         self.act = nn.SiLU()
-        self.conv = WeightStandardizedConv2d(dim, dim_out, 3, padding=1)
+        self.proj = WeightStandardizedConv2d(dim, dim_out, 3, padding=1)
         
     def forward(self, x, scale_shift=None):
-        x = self.conv(x)
+        x = self.proj(x)
         x = self.norm(x)
         
         if exists(scale_shift):
@@ -154,18 +155,18 @@ class ResnetBlock(nn.Module):
 class Attention(nn.Module):
     def __init__(self, dim, heads=4, dim_head=32):
         super().__init__()
+        self.scale = dim_head**-0.5
         self.heads = heads
-        self.scale = dim_head ** -0.5
-        inner_dim = dim_head * heads
-
-        self.to_qkv = nn.Conv2d(dim, inner_dim * 3, 1, bias=False)
-        self.to_out = nn.Conv2d(inner_dim, dim,1)
+        hidden_dim = dim_head * heads
+        self.to_qkv = nn.Conv2d(dim, hidden_dim * 3, 1, bias=False)
+        self.to_out = nn.Conv2d(hidden_dim, dim, 1)
 
     def forward(self, x):
         b, c, h, w = x.shape
         qkv = self.to_qkv(x).chunk(3, dim=1)
-        q, k, v = map(lambda t: rearrange(t, "b (h c) x y -> b h c (x y)", h=self.heads), qkv)
-
+        q, k, v = map(
+            lambda t: rearrange(t, "b (h c) x y -> b h c (x y)", h=self.heads), qkv
+        )
         q = q * self.scale
 
         sim = einsum("b h d i, b h d j -> b h i j", q, k)
@@ -173,9 +174,8 @@ class Attention(nn.Module):
         attn = sim.softmax(dim=-1)
 
         out = einsum("b h i j, b h d j -> b h i d", attn, v)
-        out = rearrange(out, "b h (x y) d-> b (h d) x y", x=h, y=w)
+        out = rearrange(out, "b h (x y) d -> b (h d) x y", x=h, y=w)
         return self.to_out(out)
-    
 
 class LinearAttention(nn.Module):
     def __init__(self, dim, heads=4, dim_head=32):
@@ -215,7 +215,7 @@ class PreNorm(nn.Module):
         self.fn = fn
         self.norm = nn.GroupNorm(1, dim)
 
-    def forward(self, x):
+    def forward(self, x ):
         x = self.norm(x)
         return self.fn(x)
     
@@ -263,7 +263,7 @@ class Unet(nn.Module):
         self.ups = nn.ModuleList([])
         num_resolutions = len(in_out)
 
-        for ind, (dim_in, dim_out) in enumerate(in_out):
+        for ind, (dim_in, dim_out) in enumerate(in_out[:2]):
             is_last  = ind >= (num_resolutions - 1)
 
             self.downs.append(
@@ -278,7 +278,7 @@ class Unet(nn.Module):
                     ]
                 )
             )
-        
+
         mid_dim = dims[-1]
         self.mid_block1 = block_klass(mid_dim, mid_dim, time_emb_dim=time_dim)
         self.mid_attn = Residual(PreNorm(mid_dim, Attention(mid_dim)))
@@ -292,7 +292,6 @@ class Unet(nn.Module):
                    [
                         block_klass(dim_out + dim_in, dim_out, time_emb_dim=time_dim),
                         block_klass(dim_out + dim_in, dim_out, time_emb_dim=time_dim),
-                        
                         Residual(PreNorm(dim_out, LinearAttention(dim_out))),
                         Upsample(dim_out, dim_in)
                         if not is_last
@@ -324,7 +323,7 @@ class Unet(nn.Module):
             h.append(x)
 
             x = block2(x, t)
-            x = attn(x, t)
+            x = attn(x)
             h.append(x)
 
             x = downsample(x)
@@ -340,7 +339,7 @@ class Unet(nn.Module):
             x = torch.cat((x, h.pop()), dim=1)
             
             x = block2(x, t)
-            x = attn(x, t)
+            x = attn(x)
 
             x = upsample(x)
 
