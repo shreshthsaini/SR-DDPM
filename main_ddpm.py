@@ -151,8 +151,10 @@ samples = sample(model, image_size=image_size, batch_size=batch_size, channels=c
 
 # showing one 
 random_index = np.random.randint(0, batch_size)
-plt.imshow(samples[-1][random_index].reshape(image_size, image_size), cmap="gray")
+#plt.imshow(samples[-1][random_index].reshape(image_size, image_size), cmap="gray")
+print(np.max(sample[-1][random_index].reshape(image_size, image_size)))
 cv2.imwrite("sample_noise.png", samples[-1][random_index].reshape(image_size, image_size))
+cv2.imwrite("sample_noise_255.png", samples[-1][random_index].reshape(image_size, image_size)*255)
 
 
 
