@@ -120,7 +120,6 @@ for epoch in range(epochs):
 
         batch_size = batch["pixel_values"].shape[0]
         batch = batch["pixel_values"].to(device)
-        
         #sampling t from each example from the batch
         t = torch.randint(0, timesteps, (batch_size,), device = device).long()
 
