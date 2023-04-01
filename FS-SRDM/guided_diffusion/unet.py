@@ -17,7 +17,7 @@ import torch.nn.functional as F
 import math 
 import random 
 
-from .fp16_util import convert_module_to_fp16, convert_module_to_fp32
+from .fp16_util import convert_module_to_f16, convert_module_to_f32
 from .nn import (checkpoint, conv_nd, linear, avg_pool_nd, zero_module, normalization, timestep_embedding,)
 
 
@@ -887,3 +887,4 @@ class EncoderUNetModel(nn.Module):
         else:
             h = h.type(x.dtype)
             return self.out(h)
+        
