@@ -100,7 +100,13 @@ class train_ddpm(object):
             worker_init_fn=seed_worker,
             generator=g,
         )
-
+        # get degradation operator
+        print("args.deg:",self.args.deg)
+        if self.args.deg =='sr_averagepooling':
+            scale=round(self.args.deg_scale)
+            A = torch.nn.AdaptiveAvgPool2d((256//scale,256//scale))
+        else:
+            raise NotImplementedError("Only sr_averagepool degradation type supported")
 
         logger.log("Training loop...")
         TrainLoop(

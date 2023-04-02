@@ -21,7 +21,7 @@ training:
     resume_checkpoint: ""
     use_fp16: False
     fp16_scale_growth: 1e-3
-    schedule_sampler: "uniform"
+    schedule_sampler: "loss-second-moment"
     weight_decay: 0.0
     lr_anneal_steps: 0
 
