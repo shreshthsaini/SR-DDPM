@@ -9,6 +9,7 @@ import tqdm
 import torch
 import torch.utils.data as data
 import enum 
+import random
 
 from ddnm_functions.ckpt_util import get_ckpt_path, download
 from ddnm_functions._ddnm import sampling_ddnm
@@ -35,42 +36,91 @@ from scipy.linalg import orth
 
 
 class train_ddpm(object):
-    def __init__(self, arg, config, device=None):
+    def __init__(self, arg, config, betas, device=None):
         self.arg = arg
         self.config = config
         self.device = device
+        self.betas = betas
         
     def train(self):
         dist_util.setup_dist()
         logger.configure()
-        logger.log("creating model and diffusion...")
-        model, diffusion = create_model_and_diffusion(**args_to_dict(self.args, model_and_diffusion_defaults().keys()))
+        
+        if self.config.model.type == 'openai':
+            logger.log("creating openai-guided diffusion model and diffusion...")
+            model, diffusion = create_model_and_diffusion(**args_to_dict(self.args, model_and_diffusion_defaults().keys()))
 
-        model.to(dist_util.dev())
+            logger.log("loading the pretrained model...")
+            if self.config.model.use_fp16:
+                model.convert_to_fp16()
+            
+            #if we are using conditional model, load the checkpoint for the conditional model
+            if self.config.model.class_cond:
+                ckpt = os.path.join(self.args.exp, 'logs/imagenet/%dx%d_diffusion.pt' % (
+                self.config.data.image_size, self.config.data.image_size))
+                if not os.path.exists(ckpt):
+                    download(
+                        'https://openaipublic.blob.core.windows.net/diffusion/jul-2021/%dx%d_diffusion_uncond.pt' % (
+                        self.config.data.image_size, self.config.data.image_size), ckpt)
+            #without conditional model
+            else:
+                ckpt = os.path.join(self.args.exp, "logs/imagenet/256x256_diffusion_uncond.pt")
+                if not os.path.exists(ckpt):
+                    download(
+                        'https://openaipublic.blob.core.windows.net/diffusion/jul-2021/256x256_diffusion_uncond.pt',
+                        ckpt)
+            #loading the checkpoint
+            model.load_state_dict(torch.load(ckpt, map_location=self.device))
+            model.to(dist_util.dev())
+            #model = torch.nn.DataParallel(model)
+            
+        elif self.config.model.type == 'stable_diffusion':
+            raise NotImplementedError
+
         schedule_sampler = create_named_schedule_sampler(self.config.training.schedule_sampler, diffusion)
 
+        #define seeds
+        def seed_worker(worker_id):
+            worker_seed = self.args.seed % 2 ** 32
+            np.random.seed(worker_seed)
+            random.seed(worker_seed)
+
         logger.log("creating dataloader...")
-        data = get_dataset(self.args, self.config) ####define the training data loader in this class!!! check and take it from load_data of openai!!
+        data, test_data = get_dataset(self.args, self.config) ####define the training data loader in this class!!! check and take it from load_data of openai!!
+        print(f'Dataset has size {len(data)}')
+        #pytroch random generator
+        g = torch.Generator()
+        #set seed for random generator
+        g.manual_seed(self.args.seed)
+        train_loader = data.DataLoader(
+            data,
+            batch_size=self.config.training.batch_size,
+            shuffle=True,
+            num_workers=self.config.data.num_workers,
+            worker_init_fn=seed_worker,
+            generator=g,
+        )
+
 
         logger.log("Training loop...")
         TrainLoop(
             model=model,
             diffusion=diffusion,
-            data=data,
+            data=train_loader, #cehck if need loader or jut data???
+            betas=self.betas,
             batch_size=self.config.training.batch_size,
-            microbatch=self.config.training.microbatch_size, ### check openai and define microbatch size
+            microbatch=self.config.training.microbatch_size,
             lr=self.config.training.lr,
-            ema_rate=self.config.training.ema_rate, #ccheck openai and define 
-            log_interval=self.config.training.log_interval, #check openai and define
-            save_interval=self.config.training.save_interval, #check openai and define
+            ema_rate=self.config.training.ema_rate, 
+            log_interval=self.config.training.log_interval, 
+            save_interval=self.config.training.save_interval, 
             resume_checkpoint=self.config.training.resume_checkpoint,
             use_fp16=self.config.training.use_fp16,
-            fp16_scale_growth=self.config.training.fp16_scale_growth, #check openai and define,
+            fp16_scale_growth=self.config.training.fp16_scale_growth, 
             schedule_sampler=schedule_sampler,
             weight_decay=self.cnfig.training.weight_decay,
             lr_anneal_steps=self.config.trainig.lr_anneal_steps,
             ).run_loop()
-
 
 
 class _sampling():

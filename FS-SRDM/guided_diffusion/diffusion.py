@@ -23,7 +23,7 @@ from scipy.linalg import orth
 
 
 #diffusion beta schedule for noise
-def get_beta_schedule(beta_schedule, *, beta_start, beta_end, num_diffusion_timesteps):
+def get_beta_schedule(beta_schedule, *, beta_start=0.0001, beta_end=0.02, num_diffusion_timesteps=1000):
     def sigmoid(x):
         return 1 / (np.exp(-x) + 1)
 
@@ -140,6 +140,9 @@ class Diffusion(object):
             print("Sampling from the model")
             ddnm = sample_ddnm(self.args, self.config, self.betas, self.device)
             ddnm.sample(self.args.simplified)
+        elif self.args.train_sample == "train":
+            print("Training the model")
+            train_ddpm(self.args, self.config, self.betas, self.device).train()
 
                 
     

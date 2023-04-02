@@ -10,20 +10,20 @@ data:
     num_workers: 32
     subset_1k: True
     out_of_dist: False
-    batch_size: 64
 
 training:
     batch_siz: 64
-    microbatch_size: 10
+    microbatch_size: -1
     lr: 1e-4
-    ema_rate: 
-    log_interval: 
-    resume_checkpoint:
-    use_fp16: True
-    fp16_scale_growth:
-    schedule_sampler: 
-    weight_decay:
-    lr_anneal_steps: 
+    ema_rate: "0.9999",  # comma-separated list of EMA values
+    log_interval: 10
+    save_interval: 100
+    resume_checkpoint: ""
+    use_fp16: False
+    fp16_scale_growth: 1e-3
+    schedule_sampler: "uniform"
+    weight_decay: 0.0
+    lr_anneal_steps: 0
 
 
 model:

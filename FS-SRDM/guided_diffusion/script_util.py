@@ -1,9 +1,9 @@
 import argparse
 import inspect
 
-#from . import gaussian_diffusion as gd
-#from .respace import SpacedDiffusion, space_timesteps
+from .respace import SpacedDiffusion, space_timesteps
 from .unet import SuperResModel, UNetModel, EncoderUNetModel
+from . import diffusion as gd
 
 NUM_CLASSES = 1000
 
@@ -397,7 +397,7 @@ def create_gaussian_diffusion(
     rescale_learned_sigmas=False,
     timestep_respacing="",
 ):
-    betas = gd.get_named_beta_schedule(noise_schedule, steps)
+    betas = gd.get_beta_schedule(noise_schedule, num_diffusion_timesteps=steps)
     if use_kl:
         loss_type = gd.LossType.RESCALED_KL
     elif rescale_learned_sigmas:
