@@ -22,7 +22,6 @@ from .resample import LossAwareSampler, UniformSampler
 INITIAL_LOG_LOSS_SCALE = 20.0
 
 
-
 class TrainLoop:
     def __init__(
         self,
