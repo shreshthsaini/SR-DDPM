@@ -175,6 +175,7 @@ class TrainLoop:
         if (self.step - 1) % self.save_interval != 0:
             self.save()
 
+
     def run_step(self, batch, cond):
         self.forward_backward(batch, cond)
         took_step = self.mp_trainer.optimize(self.opt)
