@@ -22,6 +22,10 @@ from .resample import LossAwareSampler, UniformSampler
 INITIAL_LOG_LOSS_SCALE = 20.0
 
 
+
+# write training class for modified guided diffusion with conditional input (for super resolution) from scratch 
+
+
 class TrainLoop:
     def __init__(
         self,
@@ -93,7 +97,7 @@ class TrainLoop:
                 for _ in range(len(self.ema_rate))
             ]
 
-        if th.cuda.is_available(): #distributeddataparallel
+        if th.cuda.is_available():
             self.use_ddp = True
             self.ddp_model = DDP(
                 self.model,
@@ -112,6 +116,7 @@ class TrainLoop:
             self.use_ddp = False
             self.ddp_model = self.model
 
+    #resume from checkpoint 
     def _load_and_sync_parameters(self):
         resume_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
 
@@ -143,6 +148,7 @@ class TrainLoop:
         dist_util.sync_params(ema_params)
         return ema_params
 
+    #optimizer state from checkpoint
     def _load_optimizer_state(self):
         main_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
         opt_checkpoint = bf.join(
@@ -155,14 +161,18 @@ class TrainLoop:
             )
             self.opt.load_state_dict(state_dict)
 
-    #main loop; check the equation implementation and update with condition of 'y'
+    #main training loop
     def run_loop(self):
         while (
             not self.lr_anneal_steps
             or self.step + self.resume_step < self.lr_anneal_steps
         ):
-            batch, cond = next(self.data)
+            # Get a new batch of data.
+            batch, cond = next(self.data) #update this to give the appropriate data as batch
+            #main training step
             self.run_step(batch, cond)
+            
+            #just logging
             if self.step % self.log_interval == 0:
                 logger.dumpkvs()
             if self.step % self.save_interval == 0:
@@ -175,15 +185,19 @@ class TrainLoop:
         if (self.step - 1) % self.save_interval != 0:
             self.save()
 
-
+    #main training step
     def run_step(self, batch, cond):
+        # Forward and backward pass.
         self.forward_backward(batch, cond)
+        
+        # Update the logging paras.
         took_step = self.mp_trainer.optimize(self.opt)
         if took_step:
             self._update_ema()
         self._anneal_lr()
         self.log_step()
 
+    #main forward and backward pass for training
     def forward_backward(self, batch, cond):
         self.mp_trainer.zero_grad()
         for i in range(0, batch.shape[0], self.microbatch):
