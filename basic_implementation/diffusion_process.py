@@ -75,7 +75,6 @@ sqrt_one_minus_alphas_cumprod = torch.sqrt(1.0 - alphas_cumprod)
 posterior_variance = betas * (1.0 - alphas_cumprod_prev) / (1.0 - alphas_cumprod)
 
 # extract function to extract the appropriate t index for a batch of indices 
-
 def extract(a, t, x_shape):
     batch_size = t.shape[0]
     out = a.gather(-1, t.cpu())

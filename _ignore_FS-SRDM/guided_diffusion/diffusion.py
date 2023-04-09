@@ -14,7 +14,6 @@ from dataprep import get_dataset, data_transform, inverse_data_transform
 import torchvision.utils as tvu
 
 #from guided_diffusion.models import Model [we are using only openai imagenet pretrained model or if possible stable diffusion which will be implemented separately]
-from guided_diffusion.script_util import create_model, create_classifier, classifier_defaults, args_to_dict
 from guided_diffusion.train_sample import train_ddpm, sample_ddnm, sample_ddpm
 
 import random
