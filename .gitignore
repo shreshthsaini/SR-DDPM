@@ -1,0 +1,8 @@
+#ignore image 
+*.png 
+*.jpeg 
+*.jpg 
+
+#ignore weights 
+*.pt 
+
