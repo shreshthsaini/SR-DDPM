@@ -76,6 +76,6 @@ python eval.py -p [path to results] #misc_results/sr_ffhq_AimeF_Finetuned_infer_
 
 ## Authors
 
-Yu-Chih Chen \
 Shreshth Saini \
+Yu-Chih Chen \
 Krishna Srikar Durbha 
