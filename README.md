@@ -4,6 +4,9 @@ No official implementation of **Image Super-Resolution via Iterative Refinement(
 
 So far we only experiment with 4X super-resolution 16x16 --> 128x128. 
 
+## Report
+An Efficient Approach to Super-Resolution with Fine-Tuning Diffusion Models.pdf
+
 ## Demo : 
 
 please open and run the demo.ipynb for step by step process to run the inferece, finetuning, training, and evaluation. 
